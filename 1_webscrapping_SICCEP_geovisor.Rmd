@@ -1,0 +1,88 @@
+---
+title: "Webscrappeando geometrías del SICCEP (GEOVISOR)"
+output: html_notebook
+---
+
+# DESCARGANDO sf GEOVIVIENDA / SICCEP
+
+A continuación, descargamos las bases de datos que están detrás del geovisor de SICCEP: https://geo2.vivienda.gob.pe/enlaces/siccep.html
+
+Este visor ilustra las formas de los continuos urbanos, según una tipología desarrollada recientemente por el Ministerio de Vivienda Construcción y Saneamiento. 
+* Enlace a la guía metodológica: https://www.gob.pe/institucion/vivienda/normas-legales/6251569-000006-2024-vivienda-vmvu-dgprvu
+
+Aunque es una herramienta útil para la visualización, no ofrece una opción directa o documentada para la descarga de datos geográficos.
+
+Para obtener las bases de datos (en particular, los polígonos de los continuos urbanos), accedemos directamente a los servicios web geoespaciales que alimentan el visor (ArcGIS REST API). A través de estos servicios, es posible recuperar la información completa de manera estructurada y reproducible.
+
+## Explicación breve
+
+Con todas las capas seleccionadas (las 5 categorías), buscamos un polígono de categoría "villa" y lo seleccionamos. En modo desarrollador, en la pestaña Network, seleccionamos el URL del query más completo (los querys aparecen cuando seleccionamos la villa), en la subpestaña Headers.
+
+Copiamos el URL a ChatGPT para que identifique el mapLayerId correspondiente y transforme el endpoint desde un dynamicLayer a un endpoint directo del tipo MapServer/{id}/query, eliminando los filtros espaciales y devolviendo la capa completa en formato GeoJSON.
+
+Lo que hace es reconstruir una URL limpia y estable que permite descargar toda la capa (no solo el polígono visible en pantalla), incluyendo todos los atributos y geometría, de forma reproducible desde R usando sf.
+
+```{r}
+library(sf)
+
+url <- "https://portalgis.vivienda.gob.pe/servergis/rest/services/DGPRVU/Sistema_de_Ciudades_SICCEP/MapServer/17/query?where=1=1&outFields=*&returnGeometry=true&f=geojson&outSR=4326"
+
+continuos_poblados_full <- st_read(url)
+
+```
+
+Listo! acabamos de extraer la base de datos completa. 
+
+```{r}
+table(continuos_poblados_full$cat_siccep)
+```
+Coincide exactamente con lo que dice el geovisor. La extracción ha sido exitosa. Veamos sus variables.
+
+```{r}
+names(continuos_poblados_full)
+```
+
+
+## Validación visual
+
+Grafiquemos algunos ejemplos.
+
+```{r}
+arequipa <- continuos_poblados_full[continuos_poblados_full$objectid == 1175, ]
+
+ggplot() +
+  geom_sf(data = arequipa, fill = "red", color = "black") +
+  theme_minimal()
+```
+
+```{r}
+lima <- continuos_poblados_full[continuos_poblados_full$objectid == 1163, ]
+
+ggplot() +
+  geom_sf(data = lima, fill = "red", color = "black") +
+  theme_minimal()
+```
+```{r}
+tarapoto <- continuos_poblados_full[continuos_poblados_full$objectid == 1075, ]
+
+ggplot() +
+  geom_sf(data = tarapoto, fill = "red", color = "black") +
+  theme_minimal()
+```
+## Descargar base de datos (rds y xlsx)
+
+Ahora que vemos que ha funcionado, exportamos la base de datos en dos formatos.
+
+RDS 
+```{r}
+saveRDS(continuos_poblados_full, "continuos_poblados_SICCEP.rds")
+```
+
+GeoPackage (gpkg)
+```{r}
+st_write(continuos_poblados_full, "continuos_poblados_SICCEP.gpkg", delete_dsn = TRUE)
+```
+
+
+
+
